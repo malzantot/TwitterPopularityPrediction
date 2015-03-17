@@ -32,7 +32,17 @@ class TwitterParser:
     def get_tweet(self):
         return self.tweet
 
+    def get_post_time(self):
+        if self.tweet is None:
+            return None
+        return self.tweet['firstpost_date']
+
+    def get_tweet_type(self):
+        if self.tweet is None:
+            return None
+        return self.tweet['type']
+
     def author_followers_count(self):
         if self.tweet is None:
             return None
-        return self.tweet['tweet']['user']['followers_count']
+        return self.tweet['author']['followers']
