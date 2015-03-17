@@ -12,7 +12,6 @@ class TwitterParser:
 
     def close(self):
         if self.fh is None:
-            print('Error closing file')
             return
         self.fh.close()
         self.fh = None
