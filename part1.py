@@ -38,10 +38,13 @@ def process_hashtag(hashtag):
     tweets_per_hour = np.zeros((max_time - min_time)/3600 + 1)
     for tt in tweet_time:
         tweets_per_hour[(tt-min_time)/3600] += 1
-    print('%d %d ' %(np.min(tweets_per_hour), np.max(tweets_per_hour)))
+
+    print('%d - %d' %(min_time, max_time))
+    #print('%d %d ' %(np.min(tweets_per_hour), np.max(tweets_per_hour)))
+    #print('Length : %d' %(np.shape(tweets_per_hour)[0]))
+
     return (np.mean(followers_cnt), np.mean(retweets_cnt), np.mean(tweets_per_hour))
 
-matplotlib.use('Agg') # To save figures in PNG files
 
 hashtags = ['gohawks', 'gopatriots', 'nfl', 'patriots', 'sb49', 'superbowl']
 
