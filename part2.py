@@ -11,7 +11,7 @@ def gen_features(hashtags):
         data = np.genfromtxt(format('results/%s_results.txt' %(htag)), delimiter=',')
         min_time = np.min(data[:, 0])
         max_time = np.max(data[:, 0])
-        time_win = np.arange(min_time, max_time+3600, 3600)
+        time_win = np.arange(min_time, max_time+1, 3600)
         win_cnt = time_win.shape[0]
 
         tag_X = np.zeros(shape=(win_cnt-1,5))
@@ -31,8 +31,15 @@ def gen_features(hashtags):
                 tag_X[win_idx, 2] += data[ii][1]    # Sum of followers
                 tag_X[win_idx, 3] = max(tag_X[win_idx, 3], data[ii][1]) # Max number of followers
                 tag_X[win_idx, 4] = datetime.datetime.fromtimestamp(data[ii][0]).hour
-        X = np.vstack((X, tag_X[1:-1,:]))
-        y = np.append(y, tag_y[1:-1])
+
+        X = np.vstack((X, tag_X))
+        y = np.append(y, tag_y)
+
+        print tag_X
+        print tag_y
+
+    # Constant term in regression
+    X = sm.add_constant(X)
     return (X, y)
 
 hashtags = ['gohawks', 'gopatriots', 'nfl', 'patriots', 'sb49', 'superbowl']

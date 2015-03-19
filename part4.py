@@ -75,7 +75,7 @@ def crossValidation(modelData, model, group):
 
 		min_time = np.min(data[:, 0])
 		max_time = np.max(data[:, 0])
-		time_win = np.arange(min_time, max_time+3600, 3600)
+		time_win = np.arange(min_time, max_time+1, 3600)
 		win_cnt = time_win.shape[0]
 
 		tag_X = np.zeros(shape=(win_cnt-1,featureWidth))
@@ -117,10 +117,10 @@ def crossValidation(modelData, model, group):
 			cnt += 1
 		print 'hashtag #{} Ntrain:{} Ntest:{}'.format(hashtags[i], ntrain, ntest)
 
-		X = np.vstack((X, tag_X[1:-1,:]))
-		y = np.append(y, tag_y[1:-1])
-		Xt = np.vstack((Xt, tag_Xt[1:-1,:]))
-		yt = np.append(yt, tag_yt[1:-1])
+		X = np.vstack((X, tag_X))
+		y = np.append(y, tag_y)
+		Xt = np.vstack((Xt, tag_Xt))
+		yt = np.append(yt, tag_yt)
 	X = sm.add_constant(X)
 	Xt = sm.add_constant(Xt)
 
