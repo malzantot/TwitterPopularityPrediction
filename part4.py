@@ -9,8 +9,8 @@ feb18am = datetime.datetime(2015,02,01,8,00,0)
 feb18pm = datetime.datetime(2015,02,01,20,00,0)
 
 # Not daylight saving time on feb 1: adjust clock backwards by 1h
-#offset = -3600
-offset = 0
+offset = -3600
+
 tfeb18am = int(time.mktime(feb18am.timetuple())) + offset
 tfeb18pm = int(time.mktime(feb18pm.timetuple())) + offset
 
@@ -140,14 +140,8 @@ def main():
 	for model in xrange(3):
 		for group in xrange(10):
 			avgdiff[model][group] = crossValidation(data, model, group)
-	model = 1
-	group = 0
-	avgdiff[model][group] = crossValidation(data, model, group)
+	print 'Average absolute diff over 3 models and 10 groups:'
 	print avgdiff 
 
 if __name__=='__main__':
 	main()
-# Phase 1: Feature extraction using part 3
-
-
-# Phase 3: For each period, perform 10-fold cross validation
