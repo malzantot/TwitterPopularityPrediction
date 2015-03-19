@@ -31,8 +31,8 @@ def gen_features(hashtags):
                 tag_X[win_idx, 2] += data[ii][1]    # Sum of followers
                 tag_X[win_idx, 3] = max(tag_X[win_idx, 3], data[ii][1]) # Max number of followers
                 tag_X[win_idx, 4] = datetime.datetime.fromtimestamp(data[ii][0]).hour
-        X = np.vstack((X, tag_X))
-        y = np.append(y, tag_y)
+        X = np.vstack((X, tag_X[1:-1,:]))
+        y = np.append(y, tag_y[1:-1])
     return (X, y)
 
 hashtags = ['gohawks', 'gopatriots', 'nfl', 'patriots', 'sb49', 'superbowl']
