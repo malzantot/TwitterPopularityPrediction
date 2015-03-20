@@ -1,0 +1,7 @@
+diff a/twitterparser.py b/twitterparser.py	(rejected hunks)
+@@ -45,5 +45,4 @@
+     def author_followers_count(self):
+         if self.tweet is None:
+             return None
+-        return self.tweet['tweet']['user']['followers_count']
+         return self.tweet['author']['followers']

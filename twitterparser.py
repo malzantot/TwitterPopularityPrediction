@@ -49,7 +49,8 @@ class TwitterParser:
     def get_followers_count(self):
         if self.tweet is None:
             return None
-        return self.tweet['author']['followers']
+        return self.tweet['tweet']['user']['followers_count']
+        #return self.tweet['author']['followers']
 
     def get_user_mentioned(self): 
         if self.tweet is None: 
