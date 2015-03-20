@@ -9,7 +9,6 @@ import pandas as pd
 import statsmodels.api as sm
 import statsmodels.formula.api as smf
 import statsmodels.graphics.api as smg 
-
 import matplotlib.pyplot as plt
 
 # Return the average number of followers, average number of retweets and average number
@@ -48,7 +47,9 @@ def process_hashtag(hashtag):
 
 def fit_LM (htag):
     
+    print('\n\n')
     print('Hashtag #%s' %(htag))
+    
     #========== iter over each hour 
     
     df = pd.read_csv(('%s_factors.txt' %(htag))) 
@@ -57,7 +58,9 @@ def fit_LM (htag):
     
     time_stamp = df.ix[:,0]
     time_split = 3600 # 3600 unit is 1 hour. 
+    min_time = df['time_stamp'].min()
     begin_time = df['time_stamp'].min() # time of line_count entry 
+    max_time = df['time_stamp'].max()
     
     duration = 0
     dormant = 1
@@ -68,7 +71,7 @@ def fit_LM (htag):
         oneHour = df[ (time_stamp>=begin_time) & (time_stamp<end_time) ] 
         begin_time = end_time # update begin-time    
         duration = duration+1 # time duration.
-        if (duration > (df['time_stamp'].max() - begin_time) / time_split ):
+        if (duration > ( max_time - min_time) / time_split ):
             break 
         if (oneHour.__len__() < 1): # if no tweet can be found 
             dormant = dormant + 1
@@ -81,36 +84,53 @@ def fit_LM (htag):
             
     hourData = means.values.reshape(means.__len__()/df.columns.__len__(),df.columns.__len__()) # divide how many columns there are
     hourData = pd.DataFrame(hourData)
-    hourData.columns = ['time_stamp', 'followers', 'retweets', 'userMentioned', 'coexistHash', 'urlCount', 'count'] # put the value to be predicted in the 2nd column 
+    hourData.columns = ['time_stamp', 'followers', 'retweets', 'userMentioned', 'coexistHash', 'urlCount', 'count'] 
     
     temp = hourData.iloc[1:(hourData.__len__()+1)] # remove row 1 
     data_fit = hourData.iloc[0:hourData.__len__()] # remove last row, can't be used in analysis 
     data_fit.insert(1, 'count2' , pd.DataFrame( temp['count'].values.reshape(temp['count'].__len__(),1) ) )
-    data_fit.__delitem__('time_stamp')
+    data_fit.__delitem__('time_stamp') # don't need time stamp any more . 
+    
+    #========== add a constant (intercept)
+    data_fit = sm.add_constant(data_fit) ## use hour X to predict hour X+1   
+   
+    #========== numerical issues. if take log (0) 
+    data_fit['followers'].loc[data_fit['followers']==0] = 1
 
-    #========== fit model 
-
-    data_fit = sm.add_constant(data_fit) ## use hour X to predict hour X+1
-    lm = smf.ols('np.log(count2) ~ np.log(followers) + retweets + userMentioned + coexistHash + urlCount', data=data_fit).fit()
+    #========== fit LM  model 
     
-    y = lm.fittedvalues
-    y_true = np.log( data_fit['count2'].iloc[1:(y.__len__()+1)] )
+    #lm = smf.ols('np.log(count2) ~ np.log(followers) + retweets + userMentioned + coexistHash + urlCount' , data=data_fit).fit() # 
+    #y = lm.fittedvalues
+    #y_true = np.log( data_fit['count2'].iloc[1:(y.__len__()+1)] )
+    #print ( lm.summary() )
     
-    fig, ax = plt.subplots(figsize=(8,6)) # plot 
-    ax.set_title(htag+': Observed vs. Fitted tweet count per hour')
-    ax.set_xlabel('log Observed values')
-    ax.set_ylabel('log Fitted values');
-    ax.plot(y_true, y, 'o') # OLS
-    plt.savefig(htag+'obsVsFitted_ols.png')
-    print ( lm.summary() )
+    #fig, ax = plt.subplots(figsize=(8,6)) # plot 
+    #ax.set_title(htag+': Observed vs. Fitted tweet count per hour')
+    #ax.set_xlabel('log Observed values')
+    #ax.set_ylabel('log Fitted values');
+    #ax.plot(y_true, y, 'o') # OLS
+    #plt.savefig(htag+' obsVsFitted_ols.png')
     
-    data_fit.loc[:,1] = np.log(data_fit['followers'])
+    #fig, ax = plt.subplots(figsize=(8,6)) # plot 
+    #ax.set_title(htag+': Tweet count per hour')
+    #ax.set_xlabel('Hour')
+    #ax.set_ylabel('Tweet Count');
+    #ax.plot( y, 'ro', label='fitted')  
+    #ax.plot( data_fit['count2'], 'b-', label='true')
+    #ax.legend(loc="best");
+    #plt.savefig(htag+' OLS_tweetPerHour.png')
+    
+    #========== fit GLM model
+    
+    data_fit.loc[:,'log_follower'] = np.log(data_fit['followers']) # log of avg_followers 
+    data_fit.__delitem__('followers')
     data_fit.__delitem__('count') 
+    
     data_fit = data_fit.iloc[0:(data_fit.__len__()-1)] # remove the stupid NAN in last row. 
     y = data_fit['count2'].values # true y
-    data_fit.__delitem__('count2')
+    data_fit.__delitem__('count2') # don't need count2. 
     x = data_fit.values
-    x = sm.add_constant(x, prepend=True) # model X
+    # x = sm.add_constant(x, prepend=False) # model X # already did this change, see above 
     
     gauss_log = sm.GLM(y, x, family=sm.families.Gaussian(sm.genmod.families.links.log))
     gauss_log_results = gauss_log.fit()
@@ -121,7 +141,7 @@ def fit_LM (htag):
     ax.set_xlabel('log Observed values')
     ax.set_ylabel('log Fitted values');
     ax.plot(y, gauss_log_results.fittedvalues, 'o')  
-    plt.savefig(htag+'obsVsFitted_gauss_logLink.png')
+    plt.savefig(htag+' obsVsFitted_gauss_logLink.png')
     
     fig, ax = plt.subplots(figsize=(8,6)) # plot 
     ax.set_title(htag+': Tweet count per hour')
@@ -130,15 +150,28 @@ def fit_LM (htag):
     ax.plot( gauss_log_results.fittedvalues, 'ro', label='fitted')  
     ax.plot( y, 'b-', label='true')
     ax.legend(loc="best");
-    plt.savefig(htag+'tweetPerHour.png')
-
-    #========== fit model 
+    plt.savefig(htag+' GLM_tweetPerHour.png')
+    
+    fig, ax = plt.subplots(figsize=(8,6)) # plot 
+    ax.set_title(htag+': Tweet count per hour')
+    ax.set_xlabel('')
+    ax.set_ylabel('log Tweet Count');
+    ax.plot( data_fit['log_follower'], np.log(y), 'ro', label='log_follower')  
+    ax.plot( data_fit['retweets'], np.log(y), 'bo', label='retweet')
+    ax.plot( data_fit['urlCount'], np.log(y), 'go', label='url_count')
+    ax.plot( data_fit['coexistHash'], np.log(y), 'mo', label='coexistHash')
+    ax.plot( data_fit['userMentioned'], np.log(y), 'co', label='userMentioned')    
+    ax.legend(loc="best");
+    plt.savefig(htag+' relation.png')
+    
+#========== fit model 
 
 htag = ['gohawks', 'gopatriots', 'nfl', 'patriots', 'sb49', 'superbowl']
 
-for tag in htag: 
-##!! only need to run this once loop ONCE. 
-    followers, retweets, usersMention, coexistHash, urlCount = process_hashtag(htag)
+#for tag in htag: 
+##!! only need to run this once loop ONCE.
+#    print (tag)
+#    followers, retweets, usersMention, coexistHash, urlCount = process_hashtag(tag)
     
 for tag in htag:
     fit_LM(tag)
