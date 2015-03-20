@@ -1,9 +1,13 @@
+# Part 4 using part 3 way
+
 from twitterparser import TwitterParser
 from featureExtraction import *
 import datetime
 import time
+import pandas as pd 
 import numpy as np
 import statsmodels.api as sm
+import statsmodels.formula.api as smf
 
 feb18am = datetime.datetime(2015,02,01,8,00,0)
 feb18pm = datetime.datetime(2015,02,01,20,00,0)
@@ -32,116 +36,132 @@ def modelSplit():
 	count = 0
 	for i in xrange(len(hashtags)):
 		hashtag = hashtags[i]
-		print hashtag
-		compressedTweets = np.genfromtxt(format('results/%s_results.txt' %(hashtag)), delimiter=',')
-		for ii in range (compressedTweets.shape[0]):
-			d = compressedTweets[ii][0]
+		print('Hashtag #%s' %(hashtag))
+		df = pd.read_csv(('result_part3/%s_factors.txt' %(hashtag))) 
 
-			if d < tfeb18am:
-				model = 0
-			elif d < tfeb18pm:
-				model = 1
-			else:
-				model = 2
-			
-			data[model][i].append(compressedTweets[ii,:]) 
+		df.columns = ['time_stamp', 'followers', 'retweets', 'userMentioned', 'coexistHash', 'urlCount','type']
+		df = df.sort_index(by=['time_stamp'], ascending=[True])
+    
+		time_stamp = df.ix[:,0]
 
-	for i in xrange(3):
-		for j in xrange(len(hashtags)):
-			data[i][j] = np.array(data[i][j])
-#			print '{},{}:{}'.format(i,j,np.shape(data[i][j]))
+		data[0][i] = df[ time_stamp < tfeb18am ]
+		data[1][i] = df[ (time_stamp >= tfeb18am) & (time_stamp < tfeb18pm) ]
+		data[2][i] = df[ time_stamp >= tfeb18pm ]
 
 	return data
+
+def preparexy(df, dfcurrent):
+	time_stamp = df.ix[:,0]
+	time_split = 3600 # 3600 unit is 1 hour. 
+	begin_time = df['time_stamp'].min() # time of line_count entry 
+    
+	duration = 0
+	dormant = 1
+	means = None
+
+	maxtime = df['time_stamp'].max()
+	mintime = df['time_stamp'].min()
+
+	# feature building for training data
+	for i in range(dfcurrent.__len__()-1) : # go through each 'time-slot' (1 hour)
+		end_time = begin_time + time_split 
+		oneHour = dfcurrent[ (time_stamp>=begin_time) & (time_stamp<end_time) ] 
+		begin_time = end_time # update begin-time    
+		duration = duration+1 # time duration.
+		if (duration > (maxtime-mintime) / time_split ):
+			print duration
+			break 
+		if (oneHour.__len__() < 1): # if no tweet can be found 
+			dormant = dormant + 1
+		else:      
+			if (duration == 1): 
+				means = oneHour.mean()
+				means = pd.concat( [ means, pd.Series(oneHour.__len__(),['count']) ] ) 
+			else:
+				means = pd.concat( [ means, pd.concat ( [ oneHour.mean() , pd.Series(oneHour.__len__(),['count']) ] ) ] )       
+
+	hourData = means.values.reshape(means.__len__()/dfcurrent.columns.__len__(),dfcurrent.columns.__len__()) # divide how many columns there are
+	hourData = pd.DataFrame(hourData)
+	hourData.columns = ['time_stamp', 'followers', 'retweets', 'userMentioned', 'coexistHash', 'urlCount', 'count'] # put the value to be predicted in the 2nd column 
+    
+	temp = hourData.iloc[1:(hourData.__len__()+1)] # remove row 1 
+	data_fit = hourData.iloc[0:hourData.__len__()] # remove last row, can't be used in analysis 
+	data_fit.insert(1, 'count2' , pd.DataFrame( temp['count'].values.reshape(temp['count'].__len__(),1) ) )
+
+	temp = hourData.iloc[1:(hourData.__len__()+1)] # remove row 1 
+	data_fit = hourData.iloc[0:hourData.__len__()] # remove last row, can't be used in analysis 
+	data_fit.insert(1, 'count2' , pd.DataFrame( temp['count'].values.reshape(temp['count'].__len__(),1) ) )
+	data_fit.__delitem__('time_stamp')
+
+	#========== add a constant (intercept)
+	data_fit = sm.add_constant(data_fit) ## use hour X to predict hour X+1   
+   
+	#========== numerical issues. if take log (0) 
+	data_fit['followers'].loc[data_fit['followers']==0] = 1
+
+	data_fit.loc[:,'log_follower'] = np.log(data_fit['followers']) # log of avg_followers 
+	data_fit.__delitem__('followers')
+	data_fit.__delitem__('count') 
+	data_fit = data_fit.iloc[0:(data_fit.__len__()-1)] # remove the stupid NAN in last row. 
+	y = data_fit['count2'].values # true y
+	data_fit.__delitem__('count2')
+	x = data_fit.values
+	#x = sm.add_constant(x, prepend=True) # model X
+	return (x, y)
 
 # Perform one group of cross validation
 def crossValidation(modelData, model, group):
 	print 'Performing training/testing on model {}, group {}'.format(model, group)
+	res = np.zeros(len(hashtags))
 
-	featureWidth = 5
-
-	y = np.zeros(shape=(0))         # Y: target value
-	X = np.zeros(shape=(0,featureWidth))       # X: predictors
-
-	yt = np.zeros(shape=(0))        # Test output
-	Xt = np.zeros(shape=(0,featureWidth))      # Test feature input
-
-	cnt = 0
 	for i in xrange(len(hashtags)):
-		data = modelData[model][i]
+		print 'hashtag: {}'.format(hashtags[i])
+		df = modelData[model][i]
+		df = df.sort_index(by=['time_stamp'], ascending=[True])
 
-		#print np.shape(data)
-		#print data
-		#print data[:,0]
+		dftrain = df[(df.index.to_series() - group) % 10 != 0]
+		dftest = df[(df.index.to_series() - group) % 10 == 0] 
+		print 'hashtag #{} Ntrain:{} Ntest:{}'.format(hashtags[i], dftrain.__len__(), dftest.__len__())
 
-		min_time = np.min(data[:, 0])
-		max_time = np.max(data[:, 0])
-		time_win = np.arange(min_time, max_time+1, 3600)
-		win_cnt = time_win.shape[0]
+		x,y = preparexy(df, dftrain)
+		xt, yt = preparexy(df, dftest)
 
-		tag_X = np.zeros(shape=(win_cnt-1,featureWidth))
-		tag_y = np.zeros(win_cnt-1)
+		gauss_log = sm.GLM(y, x, family=sm.families.Gaussian(sm.genmod.families.links.log))
+		gauss_log_results = gauss_log.fit()
+		print(gauss_log_results.summary())
 
-		tag_Xt = np.zeros(shape=(win_cnt-1,featureWidth))
-		tag_yt = np.zeros(win_cnt-1)
+		yp = gauss_log_results.predict(xt)
 
-		ntrain = 0
-		ntest = 0
-		for ii in range(data.shape[0]):
-			tweet_ts = data[ii][0]
-			win_idx  = (tweet_ts - min_time) / 3600
-			
-			# Determine if the data should belong to training or testing set
-			if (cnt - group)%10 == 0:
-				tagy = tag_yt
-				tagX = tag_Xt
-				ntest += 1
-			else:
-				tagy = tag_y
-				tagX = tag_X
-				ntrain += 1
+		print yp
+		print yt
 
-			# Feature extraction here is identical to part 2 now.
-			# Target value
-			if win_idx > 0:   # We are not predicting for first window
-				tagy[win_idx-1] += 1
-
-			if (win_idx < win_cnt-1): # Ware not generating features from last window
-				tagX[win_idx, 0] += 1              # Number of tweets
-				tagX[win_idx, 1] += data[ii][2]    # Number of retweets
-				tagX[win_idx, 2] += data[ii][1]    # Sum of followers
-				tagX[win_idx, 3] = max(tag_X[win_idx, 3], data[ii][1]) # Max number of followers
-				tagX[win_idx, 4] = datetime.datetime.fromtimestamp(data[ii][0]).hour
-
+		res[i] = np.average(np.abs(yp-yt))
 			# End of feature extraction
-
-			cnt += 1
-		print 'hashtag #{} Ntrain:{} Ntest:{}'.format(hashtags[i], ntrain, ntest)
-
-		X = np.vstack((X, tag_X))
-		y = np.append(y, tag_y)
-		Xt = np.vstack((Xt, tag_Xt))
-		yt = np.append(yt, tag_yt)
-	X = sm.add_constant(X)
-	Xt = sm.add_constant(Xt)
-
-	results = sm.OLS(y,X).fit()
-	#print results.summary()
-	yp = results.predict(Xt)
-	
-	avgdiff = np.average(np.abs(yt-yp))
-	print yt
-	print yp
-	print 'Average tweets:{}, average predicted:{}, average absolute diff:{}'.format(np.average(yt), np.average(yp), avgdiff)
-	return avgdiff
+		print res[i]
+	print res
+	return res
 
 def main():
 	data = modelSplit()
-	avgdiff = np.zeros([3,10])
+	#print data
+
+	#model = 1
+	#group = 0
+	#crossValidation(data, model, group)
+
+	hl = len(hashtags)
+
+	avgdiff = np.zeros([3, hl])
 	for model in xrange(3):
+		res = np.zeros(hl)
 		for group in xrange(10):
-			avgdiff[model][group] = crossValidation(data, model, group)
-	print 'Average absolute diff over 3 models and 10 groups:'
-	print avgdiff 
+			res += crossValidation(data, model, group)
+			#res += np.ones(6) 
+		avgdiff[model,:] = res
+	#print 'Average absolute diff over 3 models and 10 groups:'
+	#print avgdiff 
+	avgdiff = avgdiff/10.0;
+	print avgdiff
 
 if __name__=='__main__':
 	main()
