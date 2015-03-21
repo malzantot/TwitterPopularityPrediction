@@ -7,6 +7,10 @@ class TwitterParser:
         self.fh = None
         self.tweet = None
 
+    def load_file(self, file_name):
+        self.filename = file_name
+        self.fh = open(self.filename, 'r')
+
     def load(self):
         self.fh = open(self.filename, 'r') # File handle
 

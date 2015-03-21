@@ -35,8 +35,8 @@ def gen_features(hashtags):
         X = np.vstack((X, tag_X))
         y = np.append(y, tag_y)
 
-        print tag_X
-        print tag_y
+        #print tag_X
+        #print tag_y
 
     # Constant term in regression
     X = sm.add_constant(X)

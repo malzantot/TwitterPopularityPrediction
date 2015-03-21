@@ -27,9 +27,9 @@ def process_hashtag(hashtag):
     # Plot a histogram for the number of tweets per hour
     min_time = np.min(tweet_time)
     max_time = np.max(tweet_time)
-    plt.hist(tweet_time, bins = range(min_time, max_time+3600, 3600))
+    hh, bins, patches = plt.hist(tweet_time, bins = range(min_time, max_time+1, 3600))
     plt.title(format('Number of Tweets per Hour for #%s' %(hashtag)))
-    plt.xlabel('Time')
+    plt.xlabel('Time (Hour)')
     plt.ylabel('Number of Tweets in Hour')
     #plt.show()
     plt.savefig(format('figures/%s.png' %(hashtag))) # Save to png
